@@ -19,16 +19,16 @@ export const metadata: Metadata = {
     apple: "/icons/apple-touch-icon.png",
   },
   openGraph: {
-    title: "성경 암송 트래커",
-    description: "팀원별 필수 구절과 전체 암송 진도를 한눈에 확인하세요.",
+    title: "성경암송대회 암송준비APP",
+    description: "성경암송대회 암송준비APP",
     url: "https://bible-memorization-tracker.vercel.app",
-    siteName: "Bible Memorization Tracker",
+    siteName: "성경암송대회 암송준비APP",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Bible Memorization Tracker",
+        alt: "성경암송대회 암송준비APP",
       },
     ],
     locale: "ko_KR",
@@ -36,8 +36,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "성경 암송 트래커",
-    description: "팀원별 필수 구절과 전체 암송 진도를 한눈에 확인하세요.",
+    title: "성경암송대회 암송준비APP",
+    description: "성경암송대회 암송준비APP",
     images: ["/og-image.png"],
   },
   robots: {
