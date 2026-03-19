@@ -17,7 +17,7 @@ export default function Home() {
   const [teamAvg, setTeamAvg] = useState(0);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedVerses, setSelectedVerses] = useState<number[]>([]);
-  const { masteredVerses, dailyVerses, toggleMastery, toggleDaily, isLoading, fetchTeamMandatoryProgress } = useProgress(selectedMemberId);
+  const { masteredVerses, dailyVerses, toggleMastery, toggleDaily, isLoading, saveError, setSaveError, fetchTeamMandatoryProgress } = useProgress(selectedMemberId);
   const { speak, speakSequence, stop, isSpeaking, currentIndex, speed, setSpeed, repeatCount, setRepeatCount } = useTts();
 
   useEffect(() => {
@@ -25,8 +25,12 @@ export default function Home() {
       const avg = await fetchTeamMandatoryProgress(TEAM_MEMBERS);
       setTeamAvg(avg);
     }
-    loadTeamStats();
-  }, [masteredVerses]);
+    // Only refresh team avg when loading finishes (member switch or initial load),
+    // not on every individual toggle — avoids a full-table query per checkbox click.
+    if (!isLoading) {
+      loadTeamStats();
+    }
+  }, [isLoading, fetchTeamMandatoryProgress]);
 
   const selectedMember = TEAM_MEMBERS.find((member) => member.id === selectedMemberId) ?? TEAM_MEMBERS[0];
   const mandatoryIds = useMemo(() => new Set(selectedMember.mandatoryVerses), [selectedMember.mandatoryVerses]);
@@ -81,6 +85,16 @@ export default function Home() {
           </AnimatePresence>
         </section>
 
+        {/* Save Error Banner */}
+        {saveError && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <p className="text-[12px] font-semibold text-red-700">{saveError}</p>
+            <button onClick={() => setSaveError(null)} className="shrink-0 text-red-400 hover:text-red-600">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {/* TTS Controls */}
         <section className="mb-8">
           <div className="rounded-2xl border bg-slate-50/50 p-4 space-y-3">
@@ -130,7 +144,7 @@ export default function Home() {
           <div className="flex items-center justify-between border-b border-slate-900 pb-3">
             <div className="flex flex-col">
               <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.25em]">Checklist</h2>
-              <p className="text-[9px] font-bold text-slate-400 mt-0.5">불꽃 아이콘은 매일 체크, 체크박스는 최종 완료입니다.</p>
+              <p className="text-[11px] font-medium text-slate-400 mt-0.5">불꽃 아이콘은 매일 체크, 체크박스는 최종 완료입니다.</p>
             </div>
             <div className="flex flex-col items-end gap-1.5">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
@@ -179,6 +193,7 @@ export default function Home() {
                       selectMode={selectMode}
                       isSelected={selectedVerses.includes(verse.id)}
                       onToggleSelect={toggleSelect}
+                      enableWriting
                     />
                   ))}
                 </div>
@@ -206,6 +221,7 @@ export default function Home() {
                       selectMode={selectMode}
                       isSelected={selectedVerses.includes(verse.id)}
                       onToggleSelect={toggleSelect}
+                      enableWriting
                     />
                   ))}
                 </div>

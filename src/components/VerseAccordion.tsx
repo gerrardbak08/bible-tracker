@@ -1,10 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, ChevronDown, Flame, Volume2, Square } from "lucide-react";
+import { Check, ChevronDown, Flame, PenLine, Volume2, Square } from "lucide-react";
 import { Verse } from "@/types";
 import confetti from "canvas-confetti";
+
+/** Returns today's date as YYYY-MM-DD in KST. */
+function getTodayKST(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
+}
+
+function getWritingKey(verseId: number): string {
+  return `writingPractice:${verseId}:${getTodayKST()}`;
+}
 
 interface VerseAccordionProps {
   verse: Verse;
@@ -19,6 +28,8 @@ interface VerseAccordionProps {
   selectMode?: boolean;
   isSelected?: boolean;
   onToggleSelect?: (id: number) => void;
+  /** When true, shows the daily writing practice ("써보기") button. Default: false. */
+  enableWriting?: boolean;
 }
 
 export default function VerseAccordion({
@@ -34,8 +45,38 @@ export default function VerseAccordion({
   selectMode = false,
   isSelected = false,
   onToggleSelect,
+  enableWriting = false,
 }: VerseAccordionProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  // ── Daily writing practice state ─────────────────────────
+  const [writingOpen, setWritingOpen] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [writingText, setWritingText] = useState(() => {
+    if (!enableWriting || typeof window === "undefined") return "";
+    return localStorage.getItem(getWritingKey(verse.id)) ?? "";
+  });
+
+  const handleWritingChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setWritingText(val);
+    localStorage.setItem(getWritingKey(verse.id), val);
+  };
+
+  const handleWritingToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setWritingOpen((prev) => {
+      if (!prev) {
+        setTimeout(() => {
+          const el = textareaRef.current;
+          if (!el) return;
+          el.focus();
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 100);
+      }
+      return !prev;
+    });
+  };
 
   const handleMasteryClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -66,14 +107,21 @@ export default function VerseAccordion({
   };
 
   return (
-    <div 
+    <div
       className={`group relative border-b border-slate-100 last:border-0 transition-all duration-200 ${
         isOpen ? "bg-slate-50/40" : "bg-white"
       }`}
     >
-      <div 
+      {/* ── Header Row ──────────────────────────────────────── */}
+      <div
         className="flex items-center py-4 px-3 cursor-pointer select-none"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (selectMode) {
+            onToggleSelect?.(verse.id);
+          } else {
+            setIsOpen(!isOpen);
+          }
+        }}
       >
         {/* Action Controls */}
         <div className="flex items-center gap-2 mr-4">
@@ -96,8 +144,8 @@ export default function VerseAccordion({
             onClick={handleDailyClick}
             title="오늘 암송 연습 완료"
             className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-all duration-200 ${
-              isDailyDone 
-                ? "bg-amber-100 border-amber-200 text-amber-600 shadow-inner" 
+              isDailyDone
+                ? "bg-amber-100 border-amber-200 text-amber-600 shadow-inner"
                 : "bg-white border-slate-200 text-slate-200 hover:border-slate-300 hover:text-slate-400"
             }`}
           >
@@ -109,8 +157,8 @@ export default function VerseAccordion({
             onClick={handleMasteryClick}
             title="완전 암송 (Mastered)"
             className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-all duration-200 ${
-              isMastered 
-                ? "bg-slate-900 border-slate-900 text-white" 
+              isMastered
+                ? "bg-slate-900 border-slate-900 text-white"
                 : "bg-white border-slate-200 text-slate-100 hover:border-slate-300 hover:text-slate-300"
             }`}
           >
@@ -125,7 +173,7 @@ export default function VerseAccordion({
               {verse.title}
             </h3>
             {isMandatory && (
-              <span 
+              <span
                 className="shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider"
                 style={{ backgroundColor: `${themeColor}10`, color: themeColor, border: `1px solid ${themeColor}20` }}
               >
@@ -138,6 +186,21 @@ export default function VerseAccordion({
             {isDailyDone && <span className="text-[10px] font-bold text-amber-500 bg-amber-50 px-1.5 rounded-sm">TODAY CHECKED</span>}
           </div>
         </div>
+
+        {/* 써보기 Button — always visible in header */}
+        {enableWriting && (
+          <button
+            onClick={handleWritingToggle}
+            title="써보기"
+            style={writingOpen
+              ? { backgroundColor: "#0f172a", borderColor: "#0f172a", color: "#ffffff" }
+              : { backgroundColor: "#f8fafc", borderColor: "#cbd5e1", color: "#64748b" }
+            }
+            className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-200 mr-2"
+          >
+            <PenLine size={13} />
+          </button>
+        )}
 
         {/* TTS Button */}
         <button
@@ -158,6 +221,26 @@ export default function VerseAccordion({
         </div>
       </div>
 
+      {/* ── Writing Area — independent of accordion state ───── */}
+      {enableWriting && writingOpen && (
+        <div className="px-3 pb-4 pt-0 space-y-1.5">
+          <textarea
+            ref={textareaRef}
+            value={writingText}
+            onChange={handleWritingChange}
+            placeholder="암송 구절을 직접 써보세요"
+            rows={4}
+            className="w-full resize-none rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-[13px] font-medium text-slate-700 leading-relaxed placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-transparent transition-all"
+          />
+          {writingText.length > 0 && (
+            <p className="text-[10px] font-semibold text-slate-400 px-1">
+              ✍️ 오늘의 암송을 써보고 있어요
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ── Accordion Expanded Content ───────────────────────── */}
       <AnimatePresence>
         {isOpen && (
           <motion.div

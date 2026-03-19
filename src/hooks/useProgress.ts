@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export function useProgress(userName: string) {
   const [masteredVerses, setMasteredVerses] = useState<number[]>([]);
   const [dailyVerses, setDailyVerses] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const getTodayString = () => {
     // KST is UTC+9. Using local string and manual construction for consistency.
@@ -63,21 +64,23 @@ export function useProgress(userName: string) {
     const newMastered = isMastered
       ? masteredVerses.filter((id) => id !== verseId)
       : [...masteredVerses, verseId];
-    
+
     setMasteredVerses(newMastered);
 
+    // Always include both arrays to prevent the other column from being wiped on upsert
     const { error } = await supabase
       .from("progress")
-      .upsert({ 
-        user_name: userName, 
+      .upsert({
+        user_name: userName,
         mastered_verses: newMastered,
-        last_checked_date: getTodayString() 
+        daily_verses: dailyVerses,
+        last_checked_date: getTodayString()
       }, { onConflict: "user_name" });
 
     if (error) {
       console.error("Error updating mastery:", error);
       setMasteredVerses(masteredVerses); // revert
-      alert("데이터 저장에 실패했습니다. (마스터리)");
+      setSaveError("마스터리 저장에 실패했습니다. 다시 시도해주세요.");
     }
   };
 
@@ -86,26 +89,28 @@ export function useProgress(userName: string) {
     const newDaily = isDaily
       ? dailyVerses.filter((id) => id !== verseId)
       : [...dailyVerses, verseId];
-    
+
     setDailyVerses(newDaily);
     const today = getTodayString();
 
+    // Always include both arrays to prevent the other column from being wiped on upsert
     const { error } = await supabase
       .from("progress")
-      .upsert({ 
-        user_name: userName, 
+      .upsert({
+        user_name: userName,
+        mastered_verses: masteredVerses,
         daily_verses: newDaily,
-        last_checked_date: today 
+        last_checked_date: today
       }, { onConflict: "user_name" });
 
     if (error) {
       console.error("Error updating daily practice:", error);
       setDailyVerses(dailyVerses); // revert
-      alert("데이터 저장에 실패했습니다. (데일리)");
+      setSaveError("오늘 체크 저장에 실패했습니다. 다시 시도해주세요.");
     }
   };
 
-  const fetchTeamMandatoryProgress = async (members: typeof import("@/constants/data").TEAM_MEMBERS) => {
+  const fetchTeamMandatoryProgress = useCallback(async (members: typeof import("@/constants/data").TEAM_MEMBERS) => {
     try {
       const { data, error } = await supabase
         .from("progress")
@@ -131,7 +136,7 @@ export function useProgress(userName: string) {
       console.error("Error fetching team progress:", err);
       return 0;
     }
-  };
+  }, []);
 
-  return { masteredVerses, dailyVerses, toggleMastery, toggleDaily, isLoading, fetchTeamMandatoryProgress };
+  return { masteredVerses, dailyVerses, toggleMastery, toggleDaily, isLoading, saveError, setSaveError, fetchTeamMandatoryProgress };
 }

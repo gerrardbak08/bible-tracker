@@ -32,8 +32,6 @@ export default function Banner({ totalMandatoryPercentage = 0 }: BannerProps) {
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950 p-6 text-white shadow-2xl">
-      {/* Decorative elements */}
-      <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/asfalt-dark.png')]" />
       
       {/* Background Gradient Glows */}
       <div className="absolute -right-10 -top-10 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl opacity-40" />
@@ -74,7 +72,7 @@ export default function Banner({ totalMandatoryPercentage = 0 }: BannerProps) {
           {/* Essential Avg Box - Perfectly Aligned */}
           <div className="relative rounded-2xl bg-white/[0.04] p-3 border border-white/5 min-w-[130px] sm:min-w-[150px] shrink-0">
             <div className="flex items-center justify-between mb-1.5 gap-2">
-              <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-widest">Essential Avg.</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Essential Avg.</span>
               <div className="h-1.5 w-1.5 rounded-full bg-[#E4F7BA] animate-pulse" />
             </div>
             <div className="flex items-baseline gap-1.5">

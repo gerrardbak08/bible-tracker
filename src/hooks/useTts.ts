@@ -96,8 +96,8 @@ export function useTts() {
           await new Promise((res) => setTimeout(res, 1000));
         }
       }
-    } catch (err: any) {
-      console.error("[TTS]", err.message);
+    } catch (err: unknown) {
+      console.error("[TTS]", err instanceof Error ? err.message : err);
     }
     setIsSpeaking(false);
   }, [speed, repeatCount, playBase64]);
@@ -122,8 +122,8 @@ export function useTts() {
           await new Promise((res) => setTimeout(res, 2000));
         }
       }
-    } catch (err: any) {
-      console.error("[TTS Sequence]", err.message);
+    } catch (err: unknown) {
+      console.error("[TTS Sequence]", err instanceof Error ? err.message : err);
     }
     setIsSpeaking(false);
     setCurrentIndex(-1);

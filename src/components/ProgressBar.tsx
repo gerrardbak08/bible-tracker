@@ -56,7 +56,32 @@ export default function ProgressBar({
       </div>
 
       <div className="mt-6 space-y-3">
-        {/* Today's Commitment Indicator */}
+        {/* Essential Status — primary competition metric, shown first and prominently */}
+        <div className="rounded-xl border-2 p-4" style={{ borderColor: `${themeColor}30`, backgroundColor: `${themeColor}06` }}>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-black text-slate-600 uppercase tracking-wider">필수 구절 달성</p>
+            <span className="text-lg font-black" style={{ color: themeColor }}>
+              {mandatoryTotalCount > 0 ? Math.round((mandatoryCompletedCount / mandatoryTotalCount) * 100) : 0}%
+            </span>
+          </div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-black text-slate-800">{mandatoryCompletedCount} / {mandatoryTotalCount} 구절</span>
+            {mandatoryCompletedCount === mandatoryTotalCount && mandatoryTotalCount > 0 && (
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: themeColor }}>완료!</span>
+            )}
+          </div>
+          <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+            <motion.div
+              className="h-full rounded-full"
+              style={{ backgroundColor: themeColor }}
+              initial={{ width: 0 }}
+              animate={{ width: `${mandatoryTotalCount > 0 ? (mandatoryCompletedCount / mandatoryTotalCount) * 100 : 0}%` }}
+              transition={{ duration: 1 }}
+            />
+          </div>
+        </div>
+
+        {/* Today's Commitment */}
         <div className="flex items-center justify-between rounded-xl border border-amber-100 bg-amber-50/50 p-3">
           <div className="flex items-center gap-2">
             <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-100 text-amber-600">
@@ -67,39 +92,11 @@ export default function ProgressBar({
           <span className="text-sm font-black text-amber-600">{todayCheckedCount} 구절 완료</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Essential Status</p>
-              <span className="text-[10px] font-black text-slate-900">
-                {mandatoryTotalCount > 0 ? Math.round((mandatoryCompletedCount / mandatoryTotalCount) * 100) : 0}%
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-black text-slate-800">{mandatoryCompletedCount} / {mandatoryTotalCount}</span>
-              <div 
-                className="h-1.5 w-1.5 rounded-full" 
-                style={{ backgroundColor: themeColor }}
-              />
-            </div>
-            {/* Small Essential Progress Bar */}
-            <div className="mt-2 h-1 w-full rounded-full bg-slate-200 overflow-hidden">
-               <motion.div
-                className="h-full rounded-full"
-                style={{ backgroundColor: themeColor }}
-                initial={{ width: 0 }}
-                animate={{ width: `${mandatoryTotalCount > 0 ? (mandatoryCompletedCount / mandatoryTotalCount) * 100 : 0}%` }}
-                transition={{ duration: 1 }}
-              />
-            </div>
-          </div>
-          <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Remaining Goal</p>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-black text-slate-800">{totalCount - completedCount} Verses</span>
-              <div className="h-1.5 w-1.5 rounded-full bg-slate-200" />
-            </div>
-            <p className="mt-2 text-[9px] font-bold text-slate-300 uppercase italic">Keep going!</p>
+        {/* Overall remaining */}
+        <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">전체 잔여</p>
+            <span className="text-sm font-black text-slate-800">{totalCount - completedCount} 구절 남음</span>
           </div>
         </div>
       </div>
