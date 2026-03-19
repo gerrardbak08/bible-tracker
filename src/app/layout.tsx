@@ -8,7 +8,16 @@ export const metadata: Metadata = {
     template: "%s | 성경 암송 트래커",
   },
   description: "암송 진도를 체크하고 팀원별 필수 구절을 관리하는 성경 암송 대회 준비 앱",
-  applicationName: "Bible Memorization Tracker",
+  applicationName: "성경암송",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "암송",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
   openGraph: {
     title: "성경 암송 트래커",
     description: "팀원별 필수 구절과 전체 암송 진도를 한눈에 확인하세요.",

@@ -230,7 +230,8 @@ export default function VerseAccordion({
             onChange={handleWritingChange}
             placeholder="암송 구절을 직접 써보세요"
             rows={4}
-            className="w-full resize-none rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-[13px] font-medium text-slate-700 leading-relaxed placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-transparent transition-all"
+            style={{ fontSize: '16px' }}
+            className="w-full resize-none rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-medium text-slate-700 leading-relaxed placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-transparent transition-all"
           />
           {writingText.length > 0 && (
             <p className="text-[10px] font-semibold text-slate-400 px-1">
