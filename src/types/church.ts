@@ -66,8 +66,31 @@ export interface AffiliationStat {
   avgDailyPct: number;
 }
 
+export interface UserRankStat {
+  rank: number;
+  name: string;
+  affiliation: ChurchAffiliation;
+  masteredCount: number;
+  masteredPct: number;
+}
+
+export interface ActivityEntry {
+  name: string;
+  affiliation: ChurchAffiliation;
+  lastActiveAt: string;
+  masteredCount: number;
+}
+
+export interface WeeklyTrend {
+  weekLabel: string;
+  newMastered: number;
+}
+
 export interface AdminStats {
   totalUsers: number;
   totalMasteredRate: number;
   byAffiliation: AffiliationStat[];
+  ranking: UserRankStat[];
+  recentActivity: ActivityEntry[];
+  weeklyTrend: WeeklyTrend[];
 }
