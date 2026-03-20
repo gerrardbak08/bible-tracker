@@ -117,9 +117,16 @@ function runDriveQueue(
   const audio = new Audio(`data:audio/mp3;base64,${item.data}`);
   refs.audio.current = audio;
 
-  const makeOnDone = (reason: string) => () => {
-    audio.onended = null;
-    audio.onerror = null;
+  // Single-fire guard — prevents double-advance if onended + ontimeupdate both trigger.
+  let doneFired = false;
+
+  const onDone = (reason: string) => {
+    if (doneFired) return;
+    doneFired = true;
+
+    audio.onended     = null;
+    audio.onerror     = null;
+    audio.ontimeupdate = null;
 
     console.log(
       `[TTS:onDone] fired via "${reason}" —`,
@@ -163,13 +170,28 @@ function runDriveQueue(
     }
   };
 
-  audio.onended = makeOnDone("onended");
-  audio.onerror = makeOnDone("onerror");
+  // Primary: onended (standard)
+  audio.onended = () => onDone("onended");
+  audio.onerror = () => onDone("onerror");
+
+  // Fallback: ontimeupdate — iOS Safari sometimes skips onended for data-URI audio.
+  // Fires every ~250 ms; triggers when within 150 ms of the end.
+  audio.ontimeupdate = () => {
+    if (
+      audio.duration &&
+      isFinite(audio.duration) &&
+      audio.currentTime >= audio.duration - 0.15
+    ) {
+      audio.pause();
+      onDone("ontimeupdate");
+    }
+  };
+
   audio.play()
     .then(() => console.log("[TTS:play] play() resolved — audio started"))
     .catch((err) => {
       console.error("[TTS:play] play() REJECTED:", err);
-      makeOnDone("play.catch")();
+      onDone("play.catch");
     });
 }
 
