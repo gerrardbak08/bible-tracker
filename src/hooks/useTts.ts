@@ -67,12 +67,21 @@ export function useTts() {
   const cleanup = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current.removeAttribute("src");
+      audioRef.current.src = "";
       audioRef.current = null;
     }
   }, []);
 
-  const playBase64 = useCallback(async (base64: string): Promise<void> => {
+  // iOS fix: unlock audio context synchronously before any async work
+  const unlockAudio = useCallback(() => {
+    try {
+      const a = new Audio();
+      a.play().catch(() => {});
+    } catch {}
+  }, []);
+
+  // Play a base64 MP3. Creates Audio element immediately (iOS-safe).
+  const playBase64 = useCallback((base64: string): Promise<void> => {
     cleanup();
     return new Promise((resolve) => {
       const audio = new Audio(`data:audio/mp3;base64,${base64}`);
@@ -86,10 +95,16 @@ export function useTts() {
   const speak = useCallback(async (text: string) => {
     stopRef.current = false;
     setIsSpeaking(true);
+
+    // Unlock iOS audio context synchronously before async work
+    unlockAudio();
+
     try {
+      // Synthesize ONCE, replay repeatCount times
+      const base64 = await synthesizeSpeech(text, speed);
+      if (stopRef.current) { setIsSpeaking(false); return; }
+
       for (let r = 0; r < repeatCount; r++) {
-        if (stopRef.current) break;
-        const base64 = await synthesizeSpeech(text, speed);
         if (stopRef.current) break;
         await playBase64(base64);
         if (r < repeatCount - 1 && !stopRef.current) {
@@ -100,20 +115,31 @@ export function useTts() {
       console.error("[TTS]", err instanceof Error ? err.message : err);
     }
     setIsSpeaking(false);
-  }, [speed, repeatCount, playBase64]);
+  }, [speed, repeatCount, playBase64, unlockAudio]);
 
   const speakSequence = useCallback(async (items: { id: number; text: string }[]) => {
+    if (items.length === 0) return;
     stopRef.current = false;
     setIsSpeaking(true);
+
+    // Unlock iOS audio context synchronously before async work
+    unlockAudio();
+
     try {
+      // Pre-synthesize all items ONCE (1 API call per verse regardless of repeatCount)
+      const audioMap: Record<number, string> = {};
+      for (const item of items) {
+        if (stopRef.current) break;
+        audioMap[item.id] = await synthesizeSpeech(item.text, speed);
+      }
+
+      // Play sequence repeatCount times using cached audio
       for (let r = 0; r < repeatCount; r++) {
         if (stopRef.current) break;
         for (let i = 0; i < items.length; i++) {
           if (stopRef.current) break;
           setCurrentIndex(items[i].id);
-          const base64 = await synthesizeSpeech(items[i].text, speed);
-          if (stopRef.current) break;
-          await playBase64(base64);
+          await playBase64(audioMap[items[i].id]);
           if (i < items.length - 1 && !stopRef.current) {
             await new Promise((res) => setTimeout(res, 1200));
           }
@@ -127,7 +153,7 @@ export function useTts() {
     }
     setIsSpeaking(false);
     setCurrentIndex(-1);
-  }, [speed, repeatCount, playBase64]);
+  }, [speed, repeatCount, playBase64, unlockAudio]);
 
   const stop = useCallback(() => {
     stopRef.current = true;
