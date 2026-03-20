@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import AdminDashboard from "@/components/church/AdminDashboard";
+import { supabase } from "@/lib/supabase";
 
 const ADMIN_NAME = "박찬욱";
 
@@ -10,6 +11,15 @@ export default function ChurchAdminPage() {
   const [authorized, setAuthorized] = useState(false);
   const [error, setError] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Ensure an anonymous Supabase session exists for RLS-authenticated queries
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        supabase.auth.signInAnonymously();
+      }
+    });
+  }, []);
 
   const handleSubmit = () => {
     if (nameInput.trim() === ADMIN_NAME) {
