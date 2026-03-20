@@ -1,79 +1,81 @@
 "use client";
 
-import { useChurchAuth } from "@/hooks/church/useChurchAuth";
+import { useState, useRef } from "react";
 import AdminDashboard from "@/components/church/AdminDashboard";
 
-export default function ChurchAdminPage() {
-  const { profile, isLoading, authError } = useChurchAuth();
+const ADMIN_NAME = "박찬욱";
 
-  // ── Loading ────────────────────────────────────────────────
-  if (isLoading) {
-    return (
-      <main className="min-h-screen bg-white flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-900 rounded-full animate-spin" />
-          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Loading...</p>
-        </div>
-      </main>
-    );
+export default function ChurchAdminPage() {
+  const [nameInput, setNameInput] = useState("");
+  const [authorized, setAuthorized] = useState(false);
+  const [error, setError] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleSubmit = () => {
+    if (nameInput.trim() === ADMIN_NAME) {
+      setAuthorized(true);
+    } else {
+      setError(true);
+      setNameInput("");
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  };
+
+  if (authorized) {
+    return <AdminDashboard />;
   }
 
-  // ── Auth error ─────────────────────────────────────────────
-  if (authError) {
-    return (
-      <main className="min-h-screen bg-white flex items-center justify-center px-5">
-        <div className="text-center space-y-3 max-w-xs">
-          <p className="text-[14px] font-bold text-slate-800">{authError}</p>
+  return (
+    <main className="min-h-screen bg-white flex items-center justify-center px-5">
+      <div className="w-full max-w-xs space-y-5">
+        <div className="space-y-1">
+          <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
+            Admin
+          </p>
+          <h1 className="text-[22px] font-black text-slate-900 tracking-tight">
+            관리자 접근
+          </h1>
+        </div>
+
+        <div className="space-y-3">
+          <input
+            ref={inputRef}
+            type="text"
+            value={nameInput}
+            onChange={(e) => {
+              setNameInput(e.target.value);
+              setError(false);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            placeholder="이름 입력"
+            autoFocus
+            style={{ fontSize: "16px" }}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-medium text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-transparent transition-all"
+          />
+
+          {error && (
+            <p className="text-[12px] font-bold text-red-500 px-1">
+              접근 권한이 없습니다.
+            </p>
+          )}
+
           <button
-            onClick={() => window.location.reload()}
-            className="rounded-xl bg-slate-900 px-6 py-2.5 text-[13px] font-bold text-white"
+            onClick={handleSubmit}
+            className="w-full rounded-xl bg-slate-900 py-3 text-[14px] font-black text-white tracking-wide transition-opacity active:opacity-70"
           >
-            새로고침
+            확인
           </button>
         </div>
-      </main>
-    );
-  }
 
-  // ── Not registered ─────────────────────────────────────────
-  if (!profile) {
-    return (
-      <main className="min-h-screen bg-white flex items-center justify-center px-5">
-        <div className="text-center space-y-3 max-w-xs">
-          <p className="text-[14px] font-bold text-slate-800">
-            먼저 암송 트래커에 등록해주세요.
-          </p>
+        <div className="pt-2 text-center">
           <a
             href="/church"
-            className="inline-block rounded-xl bg-slate-900 px-6 py-2.5 text-[13px] font-bold text-white"
-          >
-            등록하러 가기
-          </a>
-        </div>
-      </main>
-    );
-  }
-
-  // ── Not admin ──────────────────────────────────────────────
-  if (profile.role !== "admin") {
-    return (
-      <main className="min-h-screen bg-white flex items-center justify-center px-5">
-        <div className="text-center space-y-2 max-w-xs">
-          <p className="text-[22px] font-black text-slate-900">접근 권한 없음</p>
-          <p className="text-[13px] font-medium text-slate-500">
-            이 페이지는 관리자 전용입니다.
-          </p>
-          <a
-            href="/church"
-            className="inline-block mt-2 rounded-xl bg-slate-900 px-6 py-2.5 text-[13px] font-bold text-white"
+            className="text-[12px] font-medium text-slate-400 underline underline-offset-2"
           >
             트래커로 돌아가기
           </a>
         </div>
-      </main>
-    );
-  }
-
-  // ── Admin ──────────────────────────────────────────────────
-  return <AdminDashboard profile={profile} />;
+      </div>
+    </main>
+  );
 }

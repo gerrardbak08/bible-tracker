@@ -2,13 +2,8 @@
 
 import { motion } from "framer-motion";
 import { useChurchAdmin } from "@/hooks/church/useChurchAdmin";
-import { ChurchProfile } from "@/types/church";
 
-interface AdminDashboardProps {
-  profile: ChurchProfile;
-}
-
-export default function AdminDashboard({ profile }: AdminDashboardProps) {
+export default function AdminDashboard() {
   const { stats, isLoading, fetchError } = useChurchAdmin();
 
   if (isLoading) {
@@ -53,7 +48,7 @@ export default function AdminDashboard({ profile }: AdminDashboardProps) {
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Admin</span>
           </div>
           <h1 className="text-[22px] font-black text-slate-900 tracking-tight">암송 현황 대시보드</h1>
-          <p className="text-[12px] font-medium text-slate-400">{profile.affiliation} · {profile.name}</p>
+          <p className="text-[12px] font-medium text-slate-400">암송대회 관리자</p>
         </header>
 
         {/* Top stats */}
