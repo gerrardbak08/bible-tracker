@@ -1,14 +1,18 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { normalizeTextForKoreanTTS } from "@/utils/ttsNormalize";
 
 const GOOGLE_TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize";
 
+const ITEM_GAP_MS  = 1200;
+const CYCLE_GAP_MS = 2000;
+
 export const SPEED_OPTIONS = [
   { label: "0.75x", value: 0.75 },
-  { label: "1.0x", value: 1.0 },
+  { label: "1.0x",  value: 1.0  },
   { label: "1.25x", value: 1.25 },
-  { label: "1.5x", value: 1.5 },
+  { label: "1.5x",  value: 1.5  },
 ];
 
 export const REPEAT_OPTIONS = [
@@ -26,25 +30,14 @@ async function synthesizeSpeech(text: string, speed: number = 1.0): Promise<stri
   const apiKey = getApiKey();
   if (!apiKey) throw new Error("Google TTS API key not configured");
 
-  const body = {
-    input: { text },
-    voice: {
-      languageCode: "ko-KR",
-      name: "ko-KR-Wavenet-A",
-      ssmlGender: "FEMALE",
-    },
-    audioConfig: {
-      audioEncoding: "MP3",
-      speakingRate: speed,
-      pitch: 0,
-      volumeGainDb: 0,
-    },
-  };
-
   const res = await fetch(`${GOOGLE_TTS_URL}?key=${apiKey}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      input: { text: normalizeTextForKoreanTTS(text) },
+      voice: { languageCode: "ko-KR", name: "ko-KR-Wavenet-A", ssmlGender: "FEMALE" },
+      audioConfig: { audioEncoding: "MP3", speakingRate: speed, pitch: 0, volumeGainDb: 0 },
+    }),
   });
 
   if (!res.ok) {
@@ -53,114 +46,245 @@ async function synthesizeSpeech(text: string, speed: number = 1.0): Promise<stri
   }
 
   const data = await res.json();
-  return data.audioContent; // base64 MP3
+  return data.audioContent as string;
 }
 
-export function useTts() {
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(-1);
-  const [speed, setSpeed] = useState(1.0);
-  const [repeatCount, setRepeatCount] = useState(1);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const stopRef = useRef(false);
+// ── Playback session ────────────────────────────────────────────────────────
 
-  const cleanup = useCallback(() => {
+interface PlaySession {
+  queue: Array<{ id: number; data: string }>;
+  itemIdx: number;
+  cycleIdx: number;
+  totalCycles: number;
+}
+
+// Plain object-type refs — no dependency on React's generic ref types.
+interface PlayRefs {
+  session: { current: PlaySession | null };
+  audio:   { current: HTMLAudioElement | null };
+  timer:   { current: ReturnType<typeof setTimeout> | null };
+  stop:    { current: boolean };
+}
+
+interface PlaySetters {
+  setCurrentIndex: (id: number) => void;
+  setIsSpeaking:   (b: boolean) => void;
+}
+
+// ── Module-level state machine ──────────────────────────────────────────────
+//
+// Defined OUTSIDE the hook so React Compiler cannot touch it.
+//
+// React Compiler (babel-plugin-react-compiler) can transform useCallback
+// closures that self-reference through setTimeout. Even if the source looks
+// stable, the compiler may produce a version where the `driveQueue` captured
+// inside the timer callback becomes stale after the first cycle, silently
+// dropping all subsequent cycles on iOS Safari.
+//
+// A module-level plain function is completely outside React Compiler's scope.
+// It calls itself directly (not through a closed-over React callback),
+// reads all state from explicit ref parameters, and can never go stale.
+//
+// Chain: audio.onended → onDone() → setTimeout → runDriveQueue() → audio.play()
+
+function runDriveQueue(
+  refs:         PlayRefs,
+  setters:      PlaySetters,
+  clearPlayback: () => void,
+): void {
+  const session = refs.session.current;
+  console.log(
+    "[TTS:driveQueue] called —",
+    session
+      ? `item=${session.itemIdx}/${session.queue.length - 1} cycle=${session.cycleIdx}/${session.totalCycles - 1}`
+      : "session=null",
+    "| stop:", refs.stop.current,
+  );
+
+  if (!session || refs.stop.current) {
+    console.log("[TTS:driveQueue] aborted — session null or stopped");
+    return;
+  }
+
+  const item = session.queue[session.itemIdx];
+
+  clearPlayback();
+
+  if (item.id >= 0) setters.setCurrentIndex(item.id);
+
+  console.log(`[TTS:driveQueue] playing id=${item.id} dataLen=${item.data.length}`);
+
+  const audio = new Audio(`data:audio/mp3;base64,${item.data}`);
+  refs.audio.current = audio;
+
+  const makeOnDone = (reason: string) => () => {
+    audio.onended = null;
+    audio.onerror = null;
+
+    console.log(
+      `[TTS:onDone] fired via "${reason}" —`,
+      refs.session.current
+        ? `item=${refs.session.current.itemIdx} cycle=${refs.session.current.cycleIdx}`
+        : "session=null",
+      "| stop:", refs.stop.current,
+    );
+
+    if (!refs.session.current || refs.stop.current) {
+      console.log("[TTS:onDone] skipped — session cleared or stopped");
+      return;
+    }
+
+    const sess = refs.session.current;
+
+    if (sess.itemIdx < sess.queue.length - 1) {
+      sess.itemIdx += 1;
+      console.log(`[TTS:onDone] → scheduling ITEM_GAP (${ITEM_GAP_MS}ms) before item ${sess.itemIdx}`);
+      refs.timer.current = setTimeout(() => {
+        refs.timer.current = null;
+        console.log(`[TTS:timer] ITEM_GAP fired → driveQueue item=${sess.itemIdx}`);
+        runDriveQueue(refs, setters, clearPlayback);
+      }, ITEM_GAP_MS);
+
+    } else if (sess.cycleIdx < sess.totalCycles - 1) {
+      sess.itemIdx = 0;
+      sess.cycleIdx += 1;
+      console.log(`[TTS:onDone] → scheduling CYCLE_GAP (${CYCLE_GAP_MS}ms) before cycle ${sess.cycleIdx}`);
+      refs.timer.current = setTimeout(() => {
+        refs.timer.current = null;
+        console.log(`[TTS:timer] CYCLE_GAP fired → driveQueue cycle=${sess.cycleIdx}`);
+        runDriveQueue(refs, setters, clearPlayback);
+      }, CYCLE_GAP_MS);
+
+    } else {
+      console.log("[TTS:onDone] → all cycles complete — resetting state");
+      refs.session.current = null;
+      setters.setIsSpeaking(false);
+      setters.setCurrentIndex(-1);
+    }
+  };
+
+  audio.onended = makeOnDone("onended");
+  audio.onerror = makeOnDone("onerror");
+  audio.play()
+    .then(() => console.log("[TTS:play] play() resolved — audio started"))
+    .catch((err) => {
+      console.error("[TTS:play] play() REJECTED:", err);
+      makeOnDone("play.catch")();
+    });
+}
+
+// ── Hook ────────────────────────────────────────────────────────────────────
+
+export function useTts() {
+  const [isSpeaking,   setIsSpeaking]   = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(-1);
+  const [speed,        setSpeed]        = useState(1.0);
+  const [repeatCount,  setRepeatCount]  = useState(1);
+
+  const audioRef   = useRef<HTMLAudioElement | null>(null);
+  const stopRef    = useRef(false);
+  const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionRef = useRef<PlaySession | null>(null);
+
+  // Stable setters (React guarantees these never change identity).
+  const setters: PlaySetters = { setCurrentIndex, setIsSpeaking };
+
+  // ── iOS audio session unlock ────────────────────────────────────────────
+  const unlockAudio = useCallback(() => {
+    try {
+      const a = new Audio(
+        "data:audio/mp3;base64,/+MYxAAAAANIAAAAAExBTUUzLjk4LjIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      );
+      a.volume = 0;
+      a.play().catch(() => {});
+    } catch {}
+  }, []);
+
+  // ── Tear down audio element + pending timer ─────────────────────────────
+  const clearPlayback = useCallback(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
     if (audioRef.current) {
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
       audioRef.current.pause();
       audioRef.current.src = "";
       audioRef.current = null;
     }
   }, []);
 
-  // iOS fix: unlock audio context synchronously before any async work
-  const unlockAudio = useCallback(() => {
-    try {
-      const a = new Audio();
-      a.play().catch(() => {});
-    } catch {}
-  }, []);
+  // Build the refs bundle inline each call — values are read at call-time
+  // from the stable ref objects, so staleness is not possible.
+  const getRefs = useCallback((): PlayRefs => ({
+    session: sessionRef,
+    audio:   audioRef,
+    timer:   timerRef,
+    stop:    stopRef,
+  }), []);
 
-  // Play a base64 MP3. Creates Audio element immediately (iOS-safe).
-  const playBase64 = useCallback((base64: string): Promise<void> => {
-    cleanup();
-    return new Promise((resolve) => {
-      const audio = new Audio(`data:audio/mp3;base64,${base64}`);
-      audioRef.current = audio;
-      audio.onended = () => resolve();
-      audio.onerror = () => resolve();
-      audio.play().catch(() => resolve());
-    });
-  }, [cleanup]);
-
+  // ── speak: single verse, repeatCount times ──────────────────────────────
   const speak = useCallback(async (text: string) => {
+    console.log(`[TTS:session] speak() — speed=${speed} repeat=${repeatCount}`);
     stopRef.current = false;
     setIsSpeaking(true);
-
-    // Unlock iOS audio context synchronously before async work
     unlockAudio();
 
     try {
-      // Synthesize ONCE, replay repeatCount times
-      const base64 = await synthesizeSpeech(text, speed);
-      if (stopRef.current) { setIsSpeaking(false); return; }
+      const data = await synthesizeSpeech(text, speed);
+      if (stopRef.current) { console.log("[TTS:session] speak() stopped during synthesis"); setIsSpeaking(false); return; }
 
-      for (let r = 0; r < repeatCount; r++) {
-        if (stopRef.current) break;
-        await playBase64(base64);
-        if (r < repeatCount - 1 && !stopRef.current) {
-          await new Promise((res) => setTimeout(res, 1000));
-        }
-      }
+      sessionRef.current = { queue: [{ id: -1, data }], itemIdx: 0, cycleIdx: 0, totalCycles: repeatCount };
+      console.log(`[TTS:session] speak() — session ready, cycles=${repeatCount}`);
+      runDriveQueue(getRefs(), setters, clearPlayback);
     } catch (err: unknown) {
-      console.error("[TTS]", err instanceof Error ? err.message : err);
+      console.error("[TTS:session] speak() error:", err instanceof Error ? err.message : err);
+      setIsSpeaking(false);
     }
-    setIsSpeaking(false);
-  }, [speed, repeatCount, playBase64, unlockAudio]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [speed, repeatCount, unlockAudio, clearPlayback, getRefs]);
 
+  // ── speakSequence: queue of verses, full queue repeated N times ──────────
   const speakSequence = useCallback(async (items: { id: number; text: string }[]) => {
     if (items.length === 0) return;
+    console.log(`[TTS:session] speakSequence() — items=${items.length} speed=${speed} repeat=${repeatCount}`);
     stopRef.current = false;
     setIsSpeaking(true);
-
-    // Unlock iOS audio context synchronously before async work
+    setCurrentIndex(-1);
     unlockAudio();
 
     try {
-      // Pre-synthesize all items ONCE (1 API call per verse regardless of repeatCount)
-      const audioMap: Record<number, string> = {};
+      const synthesized: Array<{ id: number; data: string }> = [];
       for (const item of items) {
-        if (stopRef.current) break;
-        audioMap[item.id] = await synthesizeSpeech(item.text, speed);
+        if (stopRef.current) { console.log("[TTS:session] speakSequence() stopped during synthesis"); break; }
+        console.log(`[TTS:session] synthesizing id=${item.id}`);
+        const data = await synthesizeSpeech(item.text, speed);
+        synthesized.push({ id: item.id, data });
+        console.log(`[TTS:session] synthesized id=${item.id} dataLen=${data.length}`);
       }
 
-      // Play sequence repeatCount times using cached audio
-      for (let r = 0; r < repeatCount; r++) {
-        if (stopRef.current) break;
-        for (let i = 0; i < items.length; i++) {
-          if (stopRef.current) break;
-          setCurrentIndex(items[i].id);
-          await playBase64(audioMap[items[i].id]);
-          if (i < items.length - 1 && !stopRef.current) {
-            await new Promise((res) => setTimeout(res, 1200));
-          }
-        }
-        if (r < repeatCount - 1 && !stopRef.current) {
-          await new Promise((res) => setTimeout(res, 2000));
-        }
-      }
+      if (stopRef.current || synthesized.length === 0) { setIsSpeaking(false); return; }
+
+      sessionRef.current = { queue: synthesized, itemIdx: 0, cycleIdx: 0, totalCycles: repeatCount };
+      console.log(`[TTS:session] speakSequence() — session ready, queue=${synthesized.length} cycles=${repeatCount}`);
+      runDriveQueue(getRefs(), setters, clearPlayback);
     } catch (err: unknown) {
-      console.error("[TTS Sequence]", err instanceof Error ? err.message : err);
+      console.error("[TTS:session] speakSequence() error:", err instanceof Error ? err.message : err);
+      setIsSpeaking(false);
     }
-    setIsSpeaking(false);
-    setCurrentIndex(-1);
-  }, [speed, repeatCount, playBase64, unlockAudio]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [speed, repeatCount, unlockAudio, clearPlayback, getRefs]);
 
+  // ── stop ─────────────────────────────────────────────────────────────────
   const stop = useCallback(() => {
+    console.log("[TTS:stop] called");
     stopRef.current = true;
-    cleanup();
+    sessionRef.current = null;
+    clearPlayback();
     setIsSpeaking(false);
     setCurrentIndex(-1);
-  }, [cleanup]);
+  }, [clearPlayback]);
 
   return {
     speak, speakSequence, stop, isSpeaking, currentIndex,

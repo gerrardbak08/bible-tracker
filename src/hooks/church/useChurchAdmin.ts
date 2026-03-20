@@ -23,9 +23,16 @@ function getWeekStart(date: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-function getWeekLabel(isoDate: string): string {
-  const d = new Date(isoDate);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+function getWeekLabel(mondayIso: string): string {
+  // Use Thursday of the week to determine month and week number.
+  // This matches Korean calendar convention: a week "belongs" to the month
+  // that contains its Thursday (e.g. Mon Mar 30 → Thu Apr 2 → 4월 1주차).
+  const monday = new Date(mondayIso + "T00:00:00");
+  const thursday = new Date(monday);
+  thursday.setDate(monday.getDate() + 3);
+  const month = thursday.getMonth() + 1;
+  const weekNum = Math.ceil(thursday.getDate() / 7);
+  return `${month}월 ${weekNum}주차`;
 }
 
 function computeStats(
@@ -135,12 +142,14 @@ function computeStats(
       weekCounts[week] = (weekCounts[week] ?? 0) + 1;
     });
 
-  const now = new Date();
+  // 6 weeks starting from the current week (forward-looking).
+  // Week 1 = this week, Weeks 2-6 = upcoming weeks.
+  const currentWeekMonday = new Date(getWeekStart(new Date()) + "T00:00:00");
   const weeklyTrend: WeeklyTrend[] = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i * 7);
-    const weekKey = getWeekStart(d);
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(currentWeekMonday);
+    d.setDate(currentWeekMonday.getDate() + i * 7);
+    const weekKey = d.toISOString().slice(0, 10);
     weeklyTrend.push({
       weekLabel: getWeekLabel(weekKey),
       newMastered: weekCounts[weekKey] ?? 0,
