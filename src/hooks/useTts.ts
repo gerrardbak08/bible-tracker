@@ -5,8 +5,6 @@ import { normalizeTextForKoreanTTS } from "@/utils/ttsNormalize";
 
 const GOOGLE_TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize";
 
-const ITEM_GAP_MS  = 1200;
-const CYCLE_GAP_MS = 2000;
 
 export const SPEED_OPTIONS = [
   { label: "0.75x", value: 0.75 },
@@ -145,22 +143,15 @@ function runDriveQueue(
 
     if (sess.itemIdx < sess.queue.length - 1) {
       sess.itemIdx += 1;
-      console.log(`[TTS:onDone] → scheduling ITEM_GAP (${ITEM_GAP_MS}ms) before item ${sess.itemIdx}`);
-      refs.timer.current = setTimeout(() => {
-        refs.timer.current = null;
-        console.log(`[TTS:timer] ITEM_GAP fired → driveQueue item=${sess.itemIdx}`);
-        runDriveQueue(refs, setters, clearPlayback);
-      }, ITEM_GAP_MS);
+      console.log(`[TTS:onDone] → next item ${sess.itemIdx} (direct call, no timer)`);
+      // iOS throttles setTimeout when audio ends — call directly to keep the audio session alive.
+      runDriveQueue(refs, setters, clearPlayback);
 
     } else if (sess.cycleIdx < sess.totalCycles - 1) {
       sess.itemIdx = 0;
       sess.cycleIdx += 1;
-      console.log(`[TTS:onDone] → scheduling CYCLE_GAP (${CYCLE_GAP_MS}ms) before cycle ${sess.cycleIdx}`);
-      refs.timer.current = setTimeout(() => {
-        refs.timer.current = null;
-        console.log(`[TTS:timer] CYCLE_GAP fired → driveQueue cycle=${sess.cycleIdx}`);
-        runDriveQueue(refs, setters, clearPlayback);
-      }, CYCLE_GAP_MS);
+      console.log(`[TTS:onDone] → next cycle ${sess.cycleIdx} (direct call, no timer)`);
+      runDriveQueue(refs, setters, clearPlayback);
 
     } else {
       console.log("[TTS:onDone] → all cycles complete — resetting state");
