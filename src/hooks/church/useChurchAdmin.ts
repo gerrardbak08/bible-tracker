@@ -43,8 +43,8 @@ function computeStats(
   const perUser: Record<string, { mastered: number; daily: number }> = {};
   allProgress.forEach((row) => {
     if (!perUser[row.user_id]) perUser[row.user_id] = { mastered: 0, daily: 0 };
-    if (row.status === "mastered") perUser[row.user_id].mastered++;
-    if (row.status === "daily_done" || row.status === "mastered")
+    if (row.status === "mastered" || row.status === "mastered_daily_done") perUser[row.user_id].mastered++;
+    if (row.status === "daily_done" || row.status === "mastered" || row.status === "mastered_daily_done")
       perUser[row.user_id].daily++;
   });
 
@@ -136,7 +136,7 @@ function computeStats(
   // ── Weekly Trend (last 6 weeks) ─────────────────────────────
   const weekCounts: Record<string, number> = {};
   allProgress
-    .filter((r) => r.status === "mastered" && r.updated_at)
+    .filter((r) => (r.status === "mastered" || r.status === "mastered_daily_done") && r.updated_at)
     .forEach((r) => {
       const week = getWeekStart(new Date(r.updated_at!));
       weekCounts[week] = (weekCounts[week] ?? 0) + 1;

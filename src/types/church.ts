@@ -32,8 +32,12 @@ export interface ChurchProfile {
   updated_at: string;
 }
 
-/** Per-verse memorization status. Transitions: not_started → daily_done → mastered */
-export type VerseStatus = "not_started" | "daily_done" | "mastered";
+/**
+ * Per-verse memorization status.
+ * mastered_daily_done = permanently mastered AND daily check done today.
+ * daily_done resets at midnight KST; mastered_daily_done resets to mastered.
+ */
+export type VerseStatus = "not_started" | "daily_done" | "mastered" | "mastered_daily_done";
 
 export interface ChurchVerseMeta {
   id: number;

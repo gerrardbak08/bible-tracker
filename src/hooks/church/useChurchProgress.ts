@@ -59,15 +59,42 @@ export function useChurchProgress(effectiveUserId: string | null) {
       if (error) {
         console.error("Error fetching church progress:", error);
       } else {
+        const todayKST = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date());
         const statusMap: Record<number, VerseStatus> = {};
         const dateMap: Record<number, string> = {};
+        const toReset: Array<{ user_id: string; verse_id: number; status: VerseStatus; updated_at: string }> = [];
+
         data?.forEach((row) => {
           const id = row.verse_id as number;
-          statusMap[id] = row.status as VerseStatus;
-          if (row.updated_at) dateMap[id] = row.updated_at as string;
+          let status = row.status as VerseStatus;
+          const updatedAt = row.updated_at as string | null;
+
+          if (updatedAt) dateMap[id] = updatedAt;
+
+          // Daily reset: if daily check was done on a previous day, clear it
+          if (status === "daily_done" || status === "mastered_daily_done") {
+            const checkedDate = updatedAt
+              ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date(updatedAt))
+              : "";
+            if (checkedDate !== todayKST) {
+              const resetStatus: VerseStatus = status === "mastered_daily_done" ? "mastered" : "not_started";
+              status = resetStatus;
+              toReset.push({ user_id: effectiveUserId!, verse_id: id, status: resetStatus, updated_at: new Date().toISOString() });
+            }
+          }
+
+          statusMap[id] = status;
         });
+
         setProgress(statusMap);
         setProgressDates(dateMap);
+
+        // Batch-write expired daily resets back to Supabase
+        if (toReset.length > 0) {
+          await supabase
+            .from("church_progress")
+            .upsert(toReset, { onConflict: "user_id,verse_id" });
+        }
       }
 
       setIsLoading(false);
@@ -117,12 +144,17 @@ export function useChurchProgress(effectiveUserId: string | null) {
     [effectiveUserId]
   );
 
-  /** Toggle daily practice. Mastered verses are not downgraded. */
+  /** Toggle daily practice. Works regardless of mastery status. */
   const toggleDaily = useCallback(
     (verseId: number) => {
       const current = progressRef.current[verseId] ?? "not_started";
-      if (current === "mastered") return;
-      updateStatus(verseId, current === "daily_done" ? "not_started" : "daily_done");
+      if (current === "mastered") {
+        updateStatus(verseId, "mastered_daily_done");
+      } else if (current === "mastered_daily_done") {
+        updateStatus(verseId, "mastered");
+      } else {
+        updateStatus(verseId, current === "daily_done" ? "not_started" : "daily_done");
+      }
     },
     [updateStatus]
   );
@@ -141,9 +173,11 @@ export function useChurchProgress(effectiveUserId: string | null) {
     [progress]
   );
 
-  const masteredCount = Object.values(progress).filter((s) => s === "mastered").length;
+  const masteredCount = Object.values(progress).filter(
+    (s) => s === "mastered" || s === "mastered_daily_done"
+  ).length;
   const dailyCount = Object.values(progress).filter(
-    (s) => s === "daily_done" || s === "mastered"
+    (s) => s === "daily_done" || s === "mastered_daily_done"
   ).length;
 
   return {

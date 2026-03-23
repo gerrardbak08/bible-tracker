@@ -45,8 +45,8 @@ function computeMissions(
     activeDaysSet.add(toLocalDateStr(localDate));
 
     const status = getStatus(Number(verseIdStr));
-    if (status === "daily_done" || status === "mastered") dailyThisWeek++;
-    if (status === "mastered") masteredThisWeek++;
+    if (status === "daily_done" || status === "mastered" || status === "mastered_daily_done") dailyThisWeek++;
+    if (status === "mastered" || status === "mastered_daily_done") masteredThisWeek++;
   });
 
   const activeDays = activeDaysSet.size;

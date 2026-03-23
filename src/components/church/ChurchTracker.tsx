@@ -370,8 +370,8 @@ export default function ChurchTracker({
                   <VerseAccordion
                     key={verse.id}
                     verse={verse}
-                    isMastered={status === "mastered"}
-                    isDailyDone={status === "daily_done" || status === "mastered"}
+                    isMastered={status === "mastered" || status === "mastered_daily_done"}
+                    isDailyDone={status === "daily_done" || status === "mastered_daily_done"}
                     isMandatory={isKeyVerse}
                     onToggleMastery={handleToggleMastery}
                     onToggleDaily={toggleDaily}
