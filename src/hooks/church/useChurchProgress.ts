@@ -115,17 +115,27 @@ export function useChurchProgress(effectiveUserId: string | null) {
       setProgress((prev) => ({ ...prev, [verseId]: newStatus }));
       setProgressDates((prev) => ({ ...prev, [verseId]: nowIso }));
 
-      const { error } = await supabase
+      // Ensure the session token is fresh before writing (prevents 401 on token expiry)
+      await supabase.auth.getSession();
+
+      const payload = {
+        user_id: effectiveUserId,
+        verse_id: verseId,
+        status: newStatus,
+        updated_at: nowIso,
+      };
+
+      let { error } = await supabase
         .from("church_progress")
-        .upsert(
-          {
-            user_id: effectiveUserId,
-            verse_id: verseId,
-            status: newStatus,
-            updated_at: nowIso,
-          },
-          { onConflict: "user_id,verse_id" }
-        );
+        .upsert(payload, { onConflict: "user_id,verse_id" });
+
+      // If 401 (expired token), refresh and retry once
+      if (error && (error as { status?: number }).status === 401) {
+        await supabase.auth.refreshSession();
+        ({ error } = await supabase
+          .from("church_progress")
+          .upsert(payload, { onConflict: "user_id,verse_id" }));
+      }
 
       if (error) {
         console.error("Error updating church progress:", error);
