@@ -167,13 +167,15 @@ function runDriveQueue(
 
   // Fallback: ontimeupdate — iOS Safari sometimes skips onended for data-URI audio.
   // Fires every ~250 ms; triggers when within 150 ms of the end.
+  // NOTE: Do NOT call audio.pause() here. On iOS, pausing breaks the audio session,
+  // causing the next new Audio().play() to be blocked (NotAllowedError).
+  // The pause happens naturally inside clearPlayback() just before the next audio starts.
   audio.ontimeupdate = () => {
     if (
       audio.duration &&
       isFinite(audio.duration) &&
       audio.currentTime >= audio.duration - 0.15
     ) {
-      audio.pause();
       onDone("ontimeupdate");
     }
   };
