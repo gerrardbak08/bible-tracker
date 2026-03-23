@@ -15,6 +15,31 @@ function getWritingKey(verseId: number): string {
   return `writingPractice:${verseId}:${getTodayKST()}`;
 }
 
+/**
+ * Space-tolerant character diff.
+ *
+ * Strategy: strip all spaces from both strings, compare non-space characters
+ * index-by-index, then re-insert the user's original spaces as always-ok.
+ * This prevents a single spacing mistake from cascading misalignment across
+ * the rest of the sentence.
+ */
+function computeDiff(
+  input: string,
+  correct: string,
+): Array<{ char: string; ok: boolean }> {
+  const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+  const normInput = norm(input);
+  const noSpaceCorrect = norm(correct).replace(/\s/g, "");
+
+  let ci = 0;
+  return Array.from(normInput).map((ch) => {
+    if (ch === " ") return { char: ch, ok: true };
+    const ok = ch === (noSpaceCorrect[ci] ?? "");
+    ci++;
+    return { char: ch, ok };
+  });
+}
+
 interface VerseAccordionProps {
   verse: Verse;
   isMastered: boolean;
@@ -233,11 +258,32 @@ export default function VerseAccordion({
             style={{ fontSize: '16px' }}
             className="w-full resize-none rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-medium text-slate-700 leading-relaxed placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-transparent transition-all"
           />
-          {writingText.length > 0 && (
-            <p className="text-[10px] font-semibold text-slate-400 px-1">
-              ✍️ 오늘의 암송을 써보고 있어요
-            </p>
-          )}
+          {writingText.trim().length > 0 && (() => {
+              const diff = computeDiff(writingText, verse.content);
+              const noSpaceCorrectLen = verse.content.replace(/\s/g, "").length;
+              const noSpaceInputLen = diff.filter((d) => d.char !== " ").length;
+              const allCorrect = diff.every((d) => d.ok) && noSpaceInputLen >= noSpaceCorrectLen;
+              return (
+                <div className="rounded-xl border border-slate-100 bg-white px-4 py-3 space-y-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider"
+                    style={{ color: allCorrect ? "#22c55e" : "#94a3b8" }}>
+                    {allCorrect ? "✅ 완벽해요!" : "✏️ 비교"}
+                  </p>
+                  <p className="text-[14px] font-medium leading-relaxed whitespace-pre-wrap break-words">
+                    {diff.map((item, i) => (
+                      <span
+                        key={i}
+                        style={item.ok
+                          ? { color: "#475569" }
+                          : { color: "#ef4444", backgroundColor: "#fef2f2", borderRadius: "2px" }}
+                      >
+                        {item.char}
+                      </span>
+                    ))}
+                  </p>
+                </div>
+              );
+            })()}
         </div>
       )}
 
