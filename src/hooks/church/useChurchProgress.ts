@@ -91,9 +91,18 @@ export function useChurchProgress(effectiveUserId: string | null) {
 
         // Batch-write expired daily resets back to Supabase
         if (toReset.length > 0) {
-          await supabase
+          // Ensure session is fresh before writing (prevents 401 on token expiry)
+          await supabase.auth.getSession();
+          const { error: resetError } = await supabase
             .from("church_progress")
             .upsert(toReset, { onConflict: "user_id,verse_id" });
+          if (resetError) {
+            // Refresh and retry once on auth error
+            await supabase.auth.refreshSession();
+            await supabase
+              .from("church_progress")
+              .upsert(toReset, { onConflict: "user_id,verse_id" });
+          }
         }
       }
 
