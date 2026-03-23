@@ -159,11 +159,25 @@ export function useChurchProgress(effectiveUserId: string | null) {
     [updateStatus]
   );
 
-  /** Toggle mastery: mastered → not_started, anything else → mastered. */
+  /**
+   * Toggle mastery (preserves daily-check state across transitions).
+   * not_started         → mastered
+   * daily_done          → mastered_daily_done   (keeps today's daily check)
+   * mastered            → not_started
+   * mastered_daily_done → daily_done            (keeps today's daily check)
+   */
   const toggleMastery = useCallback(
     (verseId: number) => {
       const current = progressRef.current[verseId] ?? "not_started";
-      updateStatus(verseId, current === "mastered" ? "not_started" : "mastered");
+      if (current === "mastered") {
+        updateStatus(verseId, "not_started");
+      } else if (current === "mastered_daily_done") {
+        updateStatus(verseId, "daily_done");
+      } else if (current === "daily_done") {
+        updateStatus(verseId, "mastered_daily_done");
+      } else {
+        updateStatus(verseId, "mastered");
+      }
     },
     [updateStatus]
   );

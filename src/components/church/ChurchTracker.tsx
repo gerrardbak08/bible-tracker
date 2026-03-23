@@ -99,7 +99,7 @@ export default function ChurchTracker({
 
   const handleToggleMastery = (verseId: number) => {
     const current = getStatus(verseId);
-    if (current !== "mastered") {
+    if (current !== "mastered" && current !== "mastered_daily_done") {
       confetti({
         particleCount: 100,
         spread: 80,
